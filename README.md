@@ -1,0 +1,1 @@
+# werewolf_game_python_postgresql_simple_version
