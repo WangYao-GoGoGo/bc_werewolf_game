@@ -1,0 +1,39 @@
+# Python 缓存文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Python 虚拟环境
+env/
+venv/
+ENV/
+VENV/
+
+# IDE 配置文件
+.vscode/
+.idea/
+*.iml
+
+# Mac 系统文件
+.DS_Store
+
+# 日志文件
+*.log
+
+# 临时文件夹
+tmp/
+temp/
+
+# 数据库文件
+*.sqlite3
+*.db
+
+# Node modules (如果使用Node)
+node_modules/
+
+# 敏感信息（环境变量）
+.env
+
+# .idea information
+.idea/*

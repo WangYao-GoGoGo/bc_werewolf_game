@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>注册</h2>
+<form method="post">{{ form.hidden_tag() }}
+  <label>邮箱 {{ form.email(size=40) }}</label>
+  <label>昵称 {{ form.nickname(size=32) }}</label>
+  <label>密码 {{ form.password(size=40) }}</label>
+  <label>确认 {{ form.confirm(size=40) }}</label>
+  {{ form.submit() }}
+</form>
+{% endblock %}

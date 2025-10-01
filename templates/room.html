@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>房间：{{ room.name }} (ID {{ room.id }})</h2>
+<section>
+  {% if not game %}
+    {% if room.owner_id == current_user.id %}
+      <form action="/start/{{ room.id }}" method="post"><button type="submit">开始游戏</button></form>
+    {% else %}
+      <p>等待房主开始游戏…</p>
+    {% endif %}
+  {% else %}
+    <div id="game-ui" data-room-id="{{ room.id }}"></div>
+    <div><h3>玩家列表</h3><ul id="player-list"></ul></div>
+    <div><h3>阶段</h3><p id="phase">加载中…</p><p id="countdown"></p></div>
+    <div><h3>行动</h3><div id="actions"></div></div>
+    <div><h3>消息</h3><pre id="log" style="max-height: 240px; overflow:auto;"></pre></div>
+  {% endif %}
+</section>
+
+<script>
+(function(){
+  const roomId = parseInt(document.getElementById('game-ui')?.dataset.roomId || '{{ room.id }}');
+  const socket = io({ withCredentials: true });
+  function log(msg){ const p=document.getElementById('log'); p.textContent += "\n"+new Date().toLocaleTimeString()+" "+msg; p.scrollTop=p.scrollHeight; }
+  socket.on('connect', ()=>{ socket.emit('join_room',{room_id:roomId}); log('已连接到服务器'); });
+  socket.on('joined', ()=> log('进入房间'));
+  socket.on('left', ()=> log('离开房间'));
+
+  function setPhase(phase, deadlineIso){
+    document.getElementById('phase').textContent = (phase==='night'?'夜晚':'白天');
+    if(deadlineIso){
+      const end=new Date(deadlineIso); const el=document.getElementById('countdown');
+      const timer=setInterval(()=>{ const s=Math.max(0, Math.floor((end-new Date())/1000)); el.textContent="剩余 "+s+"s"; if(s<=0) clearInterval(timer); },1000);
+    }
+  }
+
+  function renderActions(phase){
+    const wrap=document.getElementById('actions'); wrap.innerHTML='';
+    fetch('/api/state/'+roomId).then(r=>r.json()).then(st=>{
+      const you=st.role_key; const list=st.players.filter(p=>p.alive && !p.is_self);
+      const ul=document.createElement('ul');
+      list.forEach(p=>{
+        const li=document.createElement('li');
+        const makeBtn=(txt, act)=>{ const b=document.createElement('button'); b.textContent=txt+'：'+p.nickname; b.onclick=()=> socket.emit(phase==='night'?'night_action':'day_vote', {room_id:roomId, action:act, target_user_id:p.id}); li.appendChild(b); };
+        if(phase==='night'){
+          if(you==='werewolf'||you==='white_wolf_king'||you==='wolfdog'||you==='wild_wolf'||you==='breeder_wolf'||you==='wolf_beauty'||you==='demon'){ makeBtn('击杀','wolf_kill'); }
+          if(you==='seer'){ makeBtn('查验','seer_peek'); }
+          if(you==='witch'){ makeBtn('解救(若被杀)','witch_heal'); makeBtn('毒杀','witch_poison'); }
+          if(you==='guardian'){ makeBtn('守护','guardian_protect'); }
+          if(you==='raven'){ makeBtn('乌鸦标记(+1票)','raven_mark'); }
+        }else{
+          makeBtn('投票放逐','day_vote');
+        }
+        ul.appendChild(li);
+      });
+      wrap.appendChild(ul);
+      const roleBadge=document.createElement('div'); roleBadge.innerHTML='你的身份：<span class="role-badge">'+you+'</span>'; wrap.appendChild(roleBadge);
+    });
+  }
+
+  socket.on('phase_change', ({phase, deadline})=>{ setPhase(phase, deadline); renderActions(phase); log('阶段切换：'+phase); });
+  socket.on('game_started', ()=>{ log('游戏已开始'); fetchState(); });
+  socket.on('night_resolved', ({summary})=>{ log('夜晚结算：'+JSON.stringify(summary)); fetchState(); });
+  socket.on('day_resolved', ({summary})=>{ log('白天结算：'+JSON.stringify(summary)); fetchState(); });
+  socket.on('action_ok', ({action,target})=> log('已提交行动 '+action+' -> '+target));
+  socket.on('error_msg', ({message})=>{ log('错误：'+message); alert(message); });
+
+  function fetchState(){ fetch('/api/state/'+roomId).then(r=>r.json()).then(st=>{
+      setPhase(st.phase, st.deadline);
+      const ul=document.getElementById('player-list'); ul.innerHTML='';
+      st.players.forEach(p=>{ const li=document.createElement('li'); li.textContent = p.nickname+' (id:'+p.id+')'; li.className=(p.alive?'alive':'dead')+(p.is_self?' self':''); ul.appendChild(li); });
+      renderActions(st.phase);
+  }); }
+  fetchState();
+})();
+</script>
+{% endblock %}
